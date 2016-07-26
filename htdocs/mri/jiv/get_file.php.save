@@ -136,11 +136,11 @@ default:
     break;
 }
 
-# Remove this line below
-error_log("FULL PATH: $FullPath" . ", ". "IMAGE PATH: $imagePath" . ", " . "FILE PATH: $File");
+error_log($FullPath . " " . $imagePath . " " . $File);
 
 if (!file_exists($FullPath)) {
-    error_log("ERROR: File $File does not exist");
+error_log($FullPath . " " . $imagePath . " " . $File);
+   
     header("HTTP/1.1 404 Not Found");
     exit(5);
 }
