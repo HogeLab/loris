@@ -16,9 +16,9 @@
 
 {*temporary addition*}
 
-        <script>
+        <!--<script>
             $.webshims.polyfill();
-        </script>
+        </script>-->
 
         <!-- Custom JavaScript for the Menu Toggle -->
    
