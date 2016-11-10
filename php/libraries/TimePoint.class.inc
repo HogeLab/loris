@@ -11,7 +11,6 @@
  * @license  http://www.gnu.org/licenses/gpl-3.0.txt GPLv3
  * @link     https://www.github.com/aces/Loris-Trunk/
  */
-require_once "PEAR.php";
 
 /**
  * The Loris TimePoint class
@@ -22,7 +21,7 @@ require_once "PEAR.php";
  * @license  http://www.gnu.org/licenses/gpl-3.0.txt GPLv3
  * @link     https://www.github.com/aces/Loris-Trunk/
  */
-Class TimePoint
+class TimePoint
 {
     var $_timePointInfo;
 
@@ -201,7 +200,7 @@ Class TimePoint
         $db      = $factory->database();
 
         // select the candidate data
-        $query = "SELECT c.PSCID, c.CenterID,
+        $query = "SELECT c.CenterID,
                          IFNULL(max(s.VisitNo)+1, 1) AS nextVisitNo
                     FROM candidate AS c
                         LEFT OUTER JOIN session AS s USING (CandID)

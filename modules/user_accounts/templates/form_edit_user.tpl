@@ -1,6 +1,6 @@
 <br />
+<script type="text/javascript" src="{$baseurl}/js/invalid_form_scroll.js"></script>
 {literal}
-<script type="text/javascript" src="js/invalid_form_scroll.js"></script>
 <script>
 
 $(document).ready(function() {
@@ -31,7 +31,7 @@ $(document).ready(function() {
 <form method="post" name="edit_user">
     {if $form.errors}
         <div class="alert alert-danger" role="alert">
-            Please ensure that all required fields are filled
+            The form you submitted contains data entry errors
         </div>
     {/if}
    <div class="panel panel-default">
@@ -270,6 +270,25 @@ $(document).ready(function() {
             </div>
         {/if}
     </div>
+    {if $form.__ConfirmEmail}
+    {if $form.errors.__ConfirmEmail}
+    <div class="row form-group form-inline form-inline has-error">
+    {else}
+    <div class="row form-group form-inline form-inline">
+    {/if}
+    	<label class="col-sm-2">
+    		{$form.__ConfirmEmail.label}
+    	</label>
+    	<div class="col-sm-10">
+    		{$form.__ConfirmEmail.html}
+    	</div>
+        {if $form.errors.__ConfirmEmail}
+            <div class="col-sm-offset-2 col-xs-12">
+                <font class="form-error">{$form.errors.__ConfirmEmail}</font>
+            </div>
+        {/if}
+    </div>
+    {/if}
     <div class="row form-group form-inline">
     	<label class="col-sm-2">
     		{$form.CenterID.label}
@@ -278,6 +297,42 @@ $(document).ready(function() {
     		{$form.CenterID.html}
     	</div>
     </div>
+        {if $form.errors.examiner_sites}
+        <div class="row form-group form-inline form-inline has-error">
+            {else}
+            <div class="row form-group form-inline form-inline">
+                {/if}
+                <label class="col-sm-2">
+                    {$form.examiner_sites.label}
+                </label>
+                <div class="col-sm-10">
+                    {$form.examiner_sites.html}
+                </div>
+                {if $form.errors.examiner_sites}
+                    <div class="col-sm-offset-2 col-xs-12">
+                        <font class="form-error">{$form.errors.examiner_sites}</font>
+                    </div>
+                {/if}
+            </div>
+        </div>
+        {if $form.errors.examiner_group}
+        <div class="row form-group form-inline form-inline has-error">
+            {else}
+            <div class="row form-group form-inline form-inline">
+                {/if}
+                <label class="col-sm-2">
+                    {$form.examiner_group.label}
+                </label>
+                <div class="col-sm-10">
+                    <b>{$form.examiner_group.html}<b>
+                </div>
+                {if $form.errors.examiner_group}
+                    <div class="col-sm-offset-2 col-xs-12">
+                        <font class="form-error">{$form.errors.examiner_group}</font>
+                    </div>
+                {/if}
+            </div>
+        </div>
     <div class="row form-group form-inline">
     	<label class="col-sm-2">
     		{$form.Active.label}
@@ -323,7 +378,7 @@ $(document).ready(function() {
     		<input class="btn btn-sm btn-primary col-xs-12" value="Reset" type="reset" />
     	</div>
     	<div class="col-sm-2">
-    		<input class="btn btn-sm btn-primary col-xs-12" onclick="location.href='main.php?test_name=user_accounts'" value="Back" type="button" />
+    		<input class="btn btn-sm btn-primary col-xs-12" onclick="location.href='{$baseurl}/user_accounts/'" value="Back" type="button" />
     	</div>
     </div>
 <!-- </form> -->

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . "/../vendor/autoload.php";
+require_once 'generic_includes.php';
 
 /**
  * Wrapper around CouchDB MRI functions
@@ -84,21 +86,16 @@ class CouchDBMRIImporter
         foreach ($ScanTypes as $Scan) {
             $Query .= ", (SELECT f.File FROM files f LEFT JOIN files_qcstatus fqc
                       USING(FileID)
-                      LEFT JOIN parameter_file p
-                      ON (p.FileID=f.FileID
-                      AND p.ParameterTypeID=$Scan[ParameterTypeID])
-                      WHERE f.SessionID=s.ID AND p.Value='$Scan[ScanType]' LIMIT 1)
+                      WHERE f.SessionID=s.ID AND fqc.Selected='$Scan[ScanType]' LIMIT 1)
                             as `Selected_$Scan[ScanType]`, (SELECT fqc.QCStatus
                       FROM files f LEFT JOIN files_qcstatus fqc USING(FileID)
-                      LEFT JOIN parameter_file p ON (p.FileID=f.FileID
-                      AND p.ParameterTypeID=$Scan[ParameterTypeID])
-                      WHERE f.SessionID=s.ID AND p.Value='$Scan[ScanType]' LIMIT 1)
+                      WHERE f.SessionID=s.ID AND fqc.Selected='$Scan[ScanType]' LIMIT 1)
                              as `$Scan[ScanType]_QCStatus`";
         }
         $Query .= " FROM session s JOIN candidate c USING (CandID)
                     LEFT JOIN feedback_mri_comments fmric
                     ON (fmric.CommentTypeID=7 AND fmric.SessionID=s.ID)
-                    WHERE c.PSCID <> 'scanner' AND c.PSCID NOT LIKE '%9999'
+                    WHERE c.Entity_type != 'Scanner' AND c.PSCID NOT LIKE '%9999'
                           AND c.Active='Y' AND s.Active='Y' AND c.CenterID <> 1";
         return $Query;
     }
@@ -123,7 +120,7 @@ class CouchDBMRIImporter
         $inter_rej = 'IntergradientRejected_'.$type;
         $pipeline  = 'processing:pipeline';
 
-        $header['ScannerID_'.$type]           = $FileObj->getParameter('ScannerID');
+        $header['ScannerID_'.$type]           = $this->_getScannerID((int)$FileObj->getParameter('FileID'));
         $header['Pipeline_'.$type]            = $FileObj->getParameter('Pipeline');
         $header['OutputType_'.$type]          = $FileObj->getParameter('OutputType');
         $header['AcquisitionProtocol_'.$type] = $FileObj->getAcquisitionProtocol();
@@ -197,6 +194,24 @@ class CouchDBMRIImporter
         }
     }
 
+    /**
+     * Gets the scannerID
+     *
+     * @param MRIFile $file  file object
+     *
+     * @return scannerID
+     */
+     function _getScannerID($FileID){
+ 
+         $scannerID = $this->SQLDB->pselectOne("SELECT ScannerID FROM files ".
+             "WHERE FileID =:FileID",
+             array(
+                 'FileID' => $FileID
+             )
+         );
+         return $scannerID;
+     }
+ 
     /**
      * Gets a rejected parameter according to its type
      *
@@ -369,13 +384,9 @@ class CouchDBMRIImporter
     public function getScanTypes()
     {
         $ScanTypes = $this->SQLDB->pselect(
-            "SELECT DISTINCT pf.ParameterTypeID,
-                          pf.Value as ScanType
-                     FROM parameter_type pt
-                     JOIN parameter_file pf
-                     USING (ParameterTypeID)
-                     WHERE pt.Name='selected'
-                     AND COALESCE(pf.Value, '') <> ''",
+            "SELECT DISTINCT fqc.Selected as ScanType
+                     FROM files_qcstatus fqc
+                     WHERE COALESCE(fqc.Selected, '') <> ''",
             array()
         );
         return $ScanTypes;
@@ -554,4 +565,10 @@ class CouchDBMRIImporter
             }
         }
     }
+}
+
+// Don't run if we're doing the unit tests; the unit test will call run.
+if(!class_exists('UnitTestCase')) {
+    $Runner = new CouchDBMRIImporter();
+    $Runner->run();
 }

@@ -1,6 +1,4 @@
 <?php
-require_once "NDB_Form.class.inc";
-
 /**
  * The forms for the new profile menu
  * @package main
@@ -11,15 +9,10 @@ class NDB_Form_new_profile extends NDB_Form
     {
         // create user object
         $user =& User::singleton();
-        if(Utility::isErrorX($user)) {
-            return PEAR::raiseError("User Error: ".$user->getMessage());
-        }
 
         $site =& Site::singleton($user->getData('CenterID'));
-        if (Utility::isErrorX($site)) {
-            return PEAR::raiseError("Unable to construct the list_of_sites array: ".$site->getMessage());
-        }
-        if ($site->isStudySite()) {
+
+        if ($site->isStudySite() or ($site->getCenterName() == "DCC")) {
             return $user->hasPermission('data_entry');
         }
 
@@ -31,20 +24,14 @@ class NDB_Form_new_profile extends NDB_Form
         // set up the arguments to Candidate::createNew
         $user =& User::singleton();
         $config =& NDB_Config::singleton();
-        $dob = sprintf("%04d-%02d-%02d", $values['dob1']['Y'], $values['dob1']['M'], $values['dob1']['d']);
-        
+        $dob = empty($values['dob1']) ? null : $values['dob1'];
+
         if($config->getSetting('useEDC') == "true"){
-            $edc = sprintf("%04d-%02d-%02d", $values['edc1']['Y'], $values['edc1']['M'], $values['edc1']['d']);
-            if($edc == '0000-00-00') {
-                $edc = NULL;
-            }
+            $edc = empty($values['edc1']) ? null : $values['edc1'];
         }
 
         // create the candidate
         $candID = Candidate::createNew($user->getData('CenterID'), $dob, $edc, $values['gender'], $values['PSCID']);
-        if (Utility::isErrorX($candID)) {
-            return PEAR::raiseError("new_profile::_process(): ".$candID->getMessage());
-        }
 
         // get the candidate
         $candidate =& Candidate::singleton($candID);
@@ -52,9 +39,6 @@ class NDB_Form_new_profile extends NDB_Form
         if($config->getSetting('useProjects') == "true") {
             $candidate->setData('ProjectID', $values['ProjectID']);
 
-        }
-        if (Utility::isErrorX($candidate)) {
-            return PEAR::raiseError("Candidate Error ($candID): ".$candidate->getMessage());
         }
 
         //------------------------------------------------------------
@@ -81,10 +65,11 @@ class NDB_Form_new_profile extends NDB_Form
                              'minYear'         => $startYear - $ageMax,
                              'maxYear'         => $endYear - $ageMin
                              );
+        $dateAttributes = ['class' => 'form-control input-sm input-date'];
 
         // add date of birth
-        $this->addBasicDate('dob1', 'Date of Birth', $dateOptions);
-        $this->addBasicDate('dob2', 'Confirm Date of Birth', $dateOptions);
+        $this->addBasicDate('dob1', 'Date of Birth', $dateOptions, $dateAttributes);
+        $this->addBasicDate('dob2', 'Confirm Date of Birth', $dateOptions, $dateAttributes);
         $this->addRule(array('dob1', 'dob2'), 'Date of birth fields must match', 'compare');
 
 
@@ -94,8 +79,8 @@ class NDB_Form_new_profile extends NDB_Form
 
         if($config->getSetting('useEDC') == "true"){
             // add expected date of confinement
-            $this->addBasicDate('edc1', 'Expected Date of Confinement', $dateOptions);
-            $this->addBasicDate('edc2', 'Confirm EDC', $dateOptions);
+            $this->addBasicDate('edc1', 'Expected Date of Confinement', $dateOptions, $dateAttributes);
+            $this->addBasicDate('edc2', 'Confirm EDC', $dateOptions, $dateAttributes);
 
             // expected date of confinement rules
             $this->addRule(array('edc1', 'edc2'), 'EDC fields must match', 'compare');
@@ -131,19 +116,15 @@ class NDB_Form_new_profile extends NDB_Form
 
         $config =& NDB_Config::singleton();
 
-        if($values['dob1']['M'] != $values['dob2']['M'] ||
-                $values['dob1']['d'] != $values['dob2']['d'] ||
-                $values['dob1']['Y'] != $values['dob2']['Y'])
+        if($values['dob1'] != $values['dob2'])
         {
             $errors['dob1'] = 'Date of Birth fields must match.';
         }
         if($config->getSetting('useEDC') == "true") {
-            if (strlen(implode($values['edc1'])) > 2 && !_checkDate($values['edc1'])) {
+            if (strlen(implode($values['edc1'])) > 2 && !Utility::_checkDate($values['edc1'])) {
                 $errors['edc1'] = 'EDC is not a valid date';
             }
-            if($values['edc1']['M'] != $values['edc2']['M'] ||
-                    $values['edc1']['d'] != $values['edc2']['d'] ||
-                    $values['edc1']['Y'] != $values['edc2']['Y'])
+            if($values['edc1'] != $values['edc2'])
             {
                 $errors['edc1'] = 'Estimated Due date fields must match.';
             }
@@ -151,8 +132,8 @@ class NDB_Form_new_profile extends NDB_Form
 
         if (empty($values['gender'])) {
             $errors['gender'] = 'Gender is required.';
-        } 
-    
+        }
+
         $PSCIDsettings = $config->getSetting('PSCID');
         if($PSCIDsettings['generation'] == 'user') {
             $db =& Database::singleton();
@@ -164,7 +145,7 @@ class NDB_Form_new_profile extends NDB_Form
                 $errors['PSCID'] = 'PSCID must be specified';
             } elseif(!Candidate::validatePSCID($values['PSCID'], $site->getSiteAlias())) {
                 $errors['PSCID'] = 'PSCID does not match the required structure';
-            } elseif($db->pselectOne("SELECT count(PSCID) FROM candidate WHERE PSCID=:V_PSCID", 
+            } elseif($db->pselectOne("SELECT count(PSCID) FROM candidate WHERE PSCID=:V_PSCID",
                 array('V_PSCID' => $values[PSCID])) > 0
             ) {
                     $errors['PSCID'] = 'PSCID has already been registered';

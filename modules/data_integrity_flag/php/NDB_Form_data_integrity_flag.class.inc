@@ -1,5 +1,4 @@
 <?php
-require_once "NDB_Form.class.inc";
 
 /**
  * @package main
@@ -12,9 +11,6 @@ class NDB_Form_data_integrity_flag extends NDB_Form
     {
         // create user object
         $user =& User::singleton();
-        if(PEAR::isError($user)) {
-            return PEAR::raiseError("User Error: ".$user->getMessage());
-        }
         return ($user->hasPermission('data_integrity_flag'));
     }
 
@@ -27,6 +23,7 @@ class NDB_Form_data_integrity_flag extends NDB_Form
         /////////////////////////////////////////////////////
         ///////////////Constructs the where clause...
         ////////////////////////////////////////////////////////
+        $extra_where = "";
         $extra_where .= $this->AddWhere("dataflag_visitlabel", 'visit_label');
         $extra_where .= $this->AddWhere("dataflag_instrument", 'instrument');
         $extra_where .= $this->AddWhere("dataflag_userid", 'users');
@@ -35,7 +32,7 @@ class NDB_Form_data_integrity_flag extends NDB_Form
         if (($extra_where) !=null){
             $query = "SELECT * FROM data_integrity_flag
                 WHERE 1=1 $extra_where ORDER BY dataflag_date";
-            $DB->select($query,  $info);
+            $info = $DB->pselect($query, array());
 
             $defaults["instrument"] = $_REQUEST['instrument'];
             $defaults["visit_label"] = $_REQUEST['visit_label'];
@@ -49,9 +46,6 @@ class NDB_Form_data_integrity_flag extends NDB_Form
 
         // get the userID
         $user =& User::singleton();
-        if(PEAR::isError($user)) {
-            return PEAR::raiseError("User Error: ".$user->getMessage());
-        }
         $user_name = $user->getUsername();
 
         $instrument = $this->getTestNameusingMappedName($_REQUEST['instrument']); //get actual test_name
@@ -62,10 +56,7 @@ class NDB_Form_data_integrity_flag extends NDB_Form
         $comment = $values['comment'];
 
 
-        $date = sprintf("%04d-%02d-%02d", $values['date']['Y'], $values['date']['M'], $values['date']['d']);
-        if($date == '0000-00-00') {
-            $date = NULL;
-        }
+        $date = empty($values['date']) ? null : $values['date'];
 
         $flag = $values['flag_status'];
 
@@ -73,9 +64,6 @@ class NDB_Form_data_integrity_flag extends NDB_Form
         $sucess =  $DB->update('data_integrity_flag',array('latest_entry'=>0),array('dataflag_instrument' => $instrument, 'dataflag_visitlabel'=>$visit_label));
         $success = $DB->insert("data_integrity_flag", array('dataflag_instrument'=>$instrument,'dataflag_visitlabel'=>$visit_label,'dataflag_comment'=>$comment,'dataflag_date'=>$date,'dataflag_status'=>$flag,'latest_entry'=>1,'dataflag_userid'=>$user_name));
 
-        if(PEAR::isError($success)) {
-            return PEAR::raiseError("NDB_Form_data_integrity_flag::_process: ".$success->getMessage());
-        }
         $this->tpl_data['success'] = true;
     }
 
@@ -89,16 +77,22 @@ class NDB_Form_data_integrity_flag extends NDB_Form
         $conflicts = array();
         $smarty = new Smarty_neurodb();
         $config =& NDB_Config::singleton();
-        $study = $config->getSetting('study');
-        $instrument = $this->getTestNameusingMappedName($_REQUEST['instrument']); //converts the full_name into the test_name
-
+        $startYear = $config->getSetting('startYear');
+        $endYear = $config->getSetting('endYear');
+        $instrument = '';
+        if (!empty($_REQUEST['instrument'])) {
+            $instrument = $this->getTestNameusingMappedName($_REQUEST['instrument']); //converts the full_name into the test_name
+        }
         $visit_array=Utility::getExistingVisitLabels();
         $visit_array = array_combine($visit_array,$visit_array);
         $visit_array = array_merge(array('all_visits'=>"All Visits"),$visit_array);
 
         //Menu Filters
         $this->tpl_data['visitLabels'] = $visit_array;
-        $this->tpl_data['visit_label'] = $_REQUEST['visit_label'];
+        $this->tpl_data['visit_label'] = '';
+        if (!empty($_REQUEST['visit_label'])) {
+            $this->tpl_data['visit_label'] = $_REQUEST['visit_label'];
+        }
         $this->tpl_data['test_name'] = $instrument;
         $this->addSelect('users','Users',array_merge(array(''=>'All Users'),$this->getDIUsers()),array('id'=>'users'));
 
@@ -119,7 +113,7 @@ class NDB_Form_data_integrity_flag extends NDB_Form
         //if (($extra_where) !=null){
         $query = "SELECT * FROM data_integrity_flag
             WHERE 1=1 $extra_where ORDER BY dataflag_date desc";
-        $DB->select($query,  $info);
+        $info = $DB->pselect($query, array());
         //}
 
 
@@ -131,8 +125,8 @@ class NDB_Form_data_integrity_flag extends NDB_Form
                 'language'        => 'en',
                 'format'          => 'YMd',
                 'addEmptyOption'  => true,
-                'minYear'         => $study['startYear'],
-                'maxYear'         => $study['endYear']
+                'minYear'         => $startYear,
+                'maxYear'         => $endYear
                 );
 
         $this->addBasicDate('date', "Date:", $dateOptions); //date drop down
@@ -191,12 +185,8 @@ class NDB_Form_data_integrity_flag extends NDB_Form
     function AddWhere($Column, $Filter) {
         // create Database object
         $DB = Database::singleton();
-        if(PEAR::isError($DB)) {
-            print "Could not connect to database: ".$DB->getMessage()."<br>\n";
-            die();
-        }
 
-        if(!empty($_REQUEST[$Filter]) && $_REQUEST[$Filter] !=='All Instruments' &&  $_REQUEST[$Filter] !=='All Visits') {
+        if(!empty($_REQUEST[$Filter]) && $_REQUEST[$Filter] !=='All Instruments' && $_REQUEST[$Filter] !=='No instruments for this visit' &&  $_REQUEST[$Filter] !=='All Visits') {
 
             if ($Filter =='instrument'){
                 $test_name = $this->getTestNameusingMappedName($_REQUEST[$Filter]); //get actual test_name
@@ -217,41 +207,36 @@ class NDB_Form_data_integrity_flag extends NDB_Form
      */
     function _validate($fields){
         $errors=array();
-        if ((preg_match('/All/',$_REQUEST['instrument'],$matches)) || (preg_match('/All/',$_REQUEST['visit_label'],$matches))){
+        $inst = empty($_REQUEST['instrument']) ? '' : $_REQUEST['instrument'];
+        $vl   = empty($_REQUEST['visit_label']) ? '' : $_REQUEST['visit_label'];
+        if ((preg_match('/All/',$inst,$matches)) || (preg_match('/All/',$vl,$matches))){
             $errors['comment']= 'An Instrument/Vist must be selected';
         }
 
         // create Database object
         $DB = Database::singleton();
-        if(PEAR::isError($DB)) {
-            print "Could not connect to database: ".$DB->getMessage()."<br>\n";
-            die();
-        }
 
         $is_error_set = false;
 
         foreach ($fields as $field=>$value){
 
             if (preg_match('/date/',$field,$matches)){
-                if((($value['Y'] == "")&&($value['M'] == "")&&($value['d'] == ""))){
-                    $errors[$field]= 'Date is required';
+                $bits = explode('-',$value);
+
+                if (count($bits) === 3) {
+                    $date_array = array_combine(array('Y','M','d'), $bits);
                 }
-                if ($value !=null){
-                    // if not answered is not selected, time cannot be empty
-
-                    if((($value['Y'] != "")||($value['M'] != "")||($value['d'] != ""))){
-                        if($value['Y'] == ""){
-                            $errors[$field] .= "$field_name: Please fill in the administration date for all 3 fields";
-                        } else if($value['M'] == ""){
-                            $errors[$field] .= "$field_name: Please fill in the administration date for all 3 fields";
-                        } else if($value['d'] == ""){
-                            $errors[$field] .= "$field_name: Please fill in the administration date for all 3 fields";
-                        }
-
-                        if(!(checkdate($value['M'], $value['d'], $value['Y']))){
-                            $errors[$field]= 'Date is not a valid date';
-                        }
-                    }
+                
+                if( empty($date_array)
+                    || empty($date_array['Y']) 
+                    || empty($date_array['M'])
+                    || empty($date_array['d'])
+                    || !checkdate(
+                        $date_array['M'],
+                        $date_array['d'],
+                        $date_array['Y']
+                    )) {
+                    $errors[$field]= 'A valid date must be provided';
                 }
             }
 
@@ -319,6 +304,25 @@ function getDIUsers()
         $user_ids[$user['dataflag_userid']] = $user['dataflag_userid'];
     }
     return $user_ids;
+}
+
+/**
+ * Include the column formatter required to display the feedback link colours
+ * in the candidate_list menu
+ *
+ * @return array of javascript to be inserted
+ */
+function getJSDependencies()
+{
+    $factory = NDB_Factory::singleton();
+    $baseURL = $factory->settings()->getBaseURL();
+    $deps    = parent::getJSDependencies();
+    return array_merge(
+        $deps,
+        array(
+         $baseURL . "/data_integrity_flag/js/data_integrity_flag_helper.js",
+        )
+    );
 }
 
 }

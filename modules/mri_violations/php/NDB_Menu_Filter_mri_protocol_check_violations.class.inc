@@ -17,8 +17,6 @@
  * @link     https://www.github.com/aces/Loris-Trunk/
  */
 
-require_once 'NDB_Menu_Filter.class.inc';
-
 /**
  * Implements the menu filter for mri_violations_log table
  *
@@ -39,9 +37,6 @@ class NDB_Menu_Filter_mri_protocol_check_violations extends NDB_Menu_Filter
     function _hasAccess()
     {
         $user =& User::singleton();
-        if (PEAR::isError($user)) {
-            return PEAR::raiseError("User Error: " .$user->getMessage());
-        }
         return $user->hasPermission('violated_scans_view_allsites');
     }
 
@@ -65,7 +60,7 @@ class NDB_Menu_Filter_mri_protocol_check_violations extends NDB_Menu_Filter
             'l.ValidRange',
             'l.ValidRegex',
             'l.SeriesUID',
-            'l.TarchiveID'
+            'l.TarchiveID as TarchiveID'
         );
         $this->order_by = 'PatientName';
         $this->headers = array('PatientName',
@@ -77,8 +72,10 @@ class NDB_Menu_Filter_mri_protocol_check_violations extends NDB_Menu_Filter
             'Value',
             'ValidRange',
             'ValidRegex',
-            'SeriesUID'
+            'SeriesUID',
+            'TarchiveID'
         );
+        $this->tpl_data['hiddenHeaders'] = json_encode(['TarchiveID']);
         $this->validFilters = array(
             'l.TarchiveID',
             'l.SeriesUID',
@@ -91,6 +88,7 @@ class NDB_Menu_Filter_mri_protocol_check_violations extends NDB_Menu_Filter
             'PatientName' => 'l.PatientName',
             'CandID' => 'l.CandID'
         );
+        $this->tpl_data['hiddenHeaders'] = json_encode(['TarchiveID']);
     }
 
     /**
@@ -168,5 +166,19 @@ class NDB_Menu_Filter_mri_protocol_check_violations extends NDB_Menu_Filter
             }
             $x++;
         }
+    }
+
+    function getJSDependencies() {
+        $factory = NDB_Factory::singleton();
+        $baseurl = $factory->settings()->getBaseURL();
+        $depends = parent::getJSDependencies();
+        return array_merge(
+            $depends,
+            array(
+             $baseurl . "/mri_violations/js/mri_protocol_check_violations_columnFormatter.js",
+             $baseurl . "/mri_violations/js/mri_protocol_check_violations.js",
+             $baseURL . "/js/util/queryString.js"
+            )
+        );
     }
 }

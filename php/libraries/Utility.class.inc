@@ -11,10 +11,6 @@
  * @license  http://www.gnu.org/licenses/gpl-3.0.txt GPLv3
  * @link     https://www.github.com/aces/Loris/
  */
-require_once 'PEAR.php';
-require_once "NDB_Config.class.inc";
-require_once 'NDB_Factory.class.inc';
-
 
 
 /**
@@ -27,7 +23,7 @@ require_once 'NDB_Factory.class.inc';
  * @license  http://www.gnu.org/licenses/gpl-3.0.txt GPLv3
  * @link     https://www.github.com/aces/Loris/
  */
-class Utility extends PEAR
+class Utility
 {
     /**
      * This is identical to PEAR::isError from PEAR only the function
@@ -46,17 +42,9 @@ class Utility extends PEAR
      */
     static function isErrorX($data, $code=null)
     {
-        if (!is_a($data, 'PEAR_Error')) {
-            return false;
-        }
-
-        if (is_null($code)) {
-            return true;
-        } elseif (is_string($code)) {
-            return $data->getMessage() == $code;
-        }
-
-        return $data->getCode() == $code;
+        throw new LorisException(
+            "Utility::isErrorX has been deprecated. Use PHP5 exceptions instead."
+        );
     }
 
     /**
@@ -224,7 +212,7 @@ class Utility extends PEAR
      *         should be interpreted as an associative array since the keys
      *         refer to the centerID, not the array index.
      */
-    function getAssociativeSiteList($study_site = true, $DCC = true)
+    static function getAssociativeSiteList($study_site = true, $DCC = true)
     {
         $DB =& Database::singleton();
 
@@ -568,7 +556,7 @@ class Utility extends PEAR
      * @cleanup This should be removed and all uses converted to toArray
      *          (or vice versa, but toArray seems to be more common in the code)
      */
-    function asArray($var)
+    static function asArray($var)
     {
         if (!is_array($var)) {
             return array($var);
@@ -751,6 +739,35 @@ class Utility extends PEAR
         return $instruments;
     }
 
+    /**
+     * Get a list of DDE instruments installed in Loris.
+     *
+     * @return Associative array of the form Test_name => Full Description
+     * @note   Arguably, this should be a static function in NDB_BVL_Instrument
+     */
+    static function getAllDDEInstruments()
+    {
+        $Factory       = NDB_Factory::singleton();
+        $DB            = $Factory->Database();
+        $config        =& NDB_Config::singleton();
+        $instruments_q = $DB->pselect(
+            "SELECT Test_name,Full_name FROM test_names",
+            array()
+        );
+        $doubleDataEntryInstruments = $config->getSetting(
+            'DoubleDataEntryInstruments'
+        );
+
+        $instruments = array();
+        foreach ($instruments_q as $row) {
+            if (isset($row['Test_name']) && isset($row['Full_name'])) {
+                if (in_array($row['Test_name'], $doubleDataEntryInstruments)) {
+                    $instruments[$row['Test_name']] = $row['Full_name'];
+                }
+            }
+        }
+        return $instruments;
+    }
 
     /**
      * Gets a list of all instruments where are administered as direct data
@@ -842,38 +859,27 @@ class Utility extends PEAR
         return $column_threshold;
     }
 
-
     /**
      * Checks to see if a table contains a specified column
      *
-     * @param string $test_name The table to check for a column.
-     * @param string $column    The column name to check the table for.
+     * @param string $table_name The table to check for a column.
+     * @param string $column     The column name to check the table for.
      *
-     * @return  boolean true if the table has a the given column
-     * @note    This should be moved to the Database class and references to it
-     *       updated.
-     * @note    Function comment written by Dave, not the author of this function.
-     * @cleanup
+     * @return boolean true if the table has at least one NULL in the column
      */
-    static function columnExists($test_name,$column)
+    static function columnsHasNull($table_name,$column)
     {
-        $config   =& NDB_Config::singleton();
-        $database = $config->getSetting('database');
-        $query    = "SELECT DISTINCT table_name
-            FROM information_schema.columns
-            WHERE table_name = :tn
-            AND COLUMN_NAME = :cn
-            AND TABLE_SCHEMA = :db";
+        //$config   =& NDB_Config::singleton();
+        //$database = $config->getSetting('database');
+        $query    = "SELECT count(*)
+            FROM {$table_name}
+            WHERE {$column} is NULL";
         $DB       =& Database::singleton();
-        $effected = $DB->pselectOne(
+        $num_null = $DB->pselectOne(
             $query,
-            array(
-             'tn' => $test_name,
-             'cn' => $column,
-             'db' => $database,
-            )
+            array()
         );
-        if ($effected) {
+        if ($num_null > 0) {
             return true;
         }
         return false;
@@ -906,6 +912,40 @@ class Utility extends PEAR
         $visitlabels = $db->pselect($query, array('tn' => $test_name));
         return $visitlabels;
     }
+
+    /**
+     * Looks up visit stage using candidate ID.
+     *
+     * @param string $Cand_id candidate ID
+     *
+     * @return array
+     * @throws DatabaseException
+     */
+    static function getStageUsingCandID($Cand_id)
+    {
+        $db    =& Database::singleton();
+        $query = "select DISTINCT Current_stage from session where ".
+            "CandID = :Cand_id";
+        $stage = $db->pselect($query, array('Cand_id' => $Cand_id));
+        return $stage[0]['Current_stage'];
+    }
+
+    /**
+     * Looks up visit stage using candidate ID.
+     *
+     * @param string $Cand_id candidate ID
+     *
+     * @return array
+     * @throws DatabaseException
+     */
+    static function getSubprojectIDUsingCandID($Cand_id)
+    {
+        $db    =& Database::singleton();
+        $query = "select DISTINCT SubprojectID from session where CandID = :CandID";
+        $stage = $db->pselect($query, array('CandID' => $Cand_id));
+        return $stage[0]['SubprojectID'];
+    }
+
     /**
      * Looks up the test_name for the current full name
      *
@@ -919,7 +959,8 @@ class Utility extends PEAR
      */
     static function getTestNameUsingFullName($fullname)
     {
-        $db =& Database::singleton();
+        $test_name = '';
+        $db        =& Database::singleton();
         //print_r($instument);
         $instrument = $db->pselect(
             "SELECT Test_name FROM test_names WHERE Full_name =:fname",
@@ -1048,7 +1089,7 @@ class Utility extends PEAR
             JOIN psc ON (s.CenterID = psc.CenterID)
             WHERE c.Active = 'Y'
             AND s.Active = 'Y'
-            AND c.PSCID NOT LIKE '%scanner%'
+            AND c.Entity_type != 'Scanner'
             AND psc.CenterID!= '1'
             $ExtraProject_Criteria ORDER BY Visit_label";
         $visitlabels = $db->pselect($query, array());
@@ -1079,7 +1120,7 @@ class Utility extends PEAR
     {
         $DB =& Database::singleton();
 
-        if (Utility::ColumnExists('test_battery', 'Test_name_display')) {
+        if ($DB->ColumnExists('test_battery', 'Test_name_display')) {
             $test_names = $DB->pselect(
                 "SELECT DISTINCT Test_name_display FROM test_battery 
                 WHERE Visit_label=:vl",
@@ -1093,7 +1134,7 @@ class Utility extends PEAR
                 JOIN flag f ON (f.sessionid=s.id)
                 JOIN test_names t ON (f.test_name=t.Test_name)
                 WHERE c.Active='Y' AND s.Active='Y' AND s.Visit_label =:vl 
-                AND psc.CenterID != '1' AND c.PSCID != '%scanner%'
+                AND psc.CenterID != '1' AND c.Entity_type != 'Scanner'
                 ORDER BY t.Full_name",
                 array('vl' => $visit_label)
             );
@@ -1145,7 +1186,7 @@ class Utility extends PEAR
      *
      * @return string $prefixStr minus the largest common piece of $suffixStr
      */
-    function removeCommonAffix($suffixStr, $prefixStr)
+    static function removeCommonAffix($suffixStr, $prefixStr)
     {
         $lastFound = '';
         // Start from the end of $suffixStr and work backwords, to make sure
@@ -1194,6 +1235,35 @@ class Utility extends PEAR
 
         fclose($fp);
         return $csv_string;
+    }
+
+    /**
+     * QuickForm rule to check that a date is valid.
+     * This is used by create timepoint and start timepoint pages,
+     * so it probably shouldn't be in the instrument class.
+     *
+     * @param array $dateElement The date element in QuickForm array format.
+     *
+     * @return True if the date is invalid, false if it's valid.
+     */
+    function _checkDate($dateElement)
+    {
+        if (empty($dateElement['M'])
+            && empty($dateElement['d'])
+            && empty($dateElement['Y'])
+        ) {
+            // if all three elements are empty, return true b/c it'll
+            // save the NULL in date field
+            return true;
+        } elseif (empty($dateElement['M'])
+            || empty($dateElement['d'])
+            || empty($dateElement['Y'])
+        ) {
+            // otherwise, if any of the three elements are empty, return
+            // false b/c date entry has been attempted
+            return false;
+        }
+        return checkdate($dateElement['M'], $dateElement['d'], $dateElement['Y']);
     }
 }
 ?>

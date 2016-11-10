@@ -14,18 +14,13 @@
  * @license  http://www.gnu.org/licenses/gpl-3.0.txt GPLv3
  * @link     https://www.github.com/aces/Loris/
  */
-/**
- * Get the MINC tools path for bin, lib, and pipeline
- *
- * @category Imaging
- * @package  Loris/Modules/BrainBrowser
- * @author   Loris Team <loris@mcgill.ca>
- * @license  http://www.gnu.org/licenses/gpl-3.0.txt GPLv3
- * @link     https://www.github.com/aces/Loris/
- */
+
 require_once "NDB_Config.class.inc";
+
 $config    =& NDB_Config::singleton();
 $minc_path = $config->getSetting("MINCToolsPath");
+
 putenv("PATH=" . $minc_path . "bin:" . $minc_path . "pipeline:" . getenv("PATH"));
 putenv("LD_LIBRARY_PATH=" . getenv("LD_LIBRARY_PATH") . ":" . $minc_path . "lib");
+
 ?>

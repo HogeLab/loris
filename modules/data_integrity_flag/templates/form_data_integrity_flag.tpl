@@ -126,7 +126,7 @@
                             <div class="visible-xs col-xs-12"> </div>
                             <div class="visible-xs col-xs-12"> </div>
 	                        <div class="col-sm-6">
-	                        	<input class="btn btn-sm btn-primary col-xs-12" id="update_data" name="update_data" value="Show updated Data" type="submit"/>
+	                        	<input class="btn btn-sm btn-primary col-xs-12" id="set_data" name="set_data" value="Show updated Data" type="submit"/>
 	                        </div>
 	                    </div>
 	                </div>
@@ -156,7 +156,7 @@
 	        <tr>
 		        <td nowrap="nowrap" valign="top">{$elements_array[$element].visit_label}</td>
 		        <td nowrap="nowrap" valign="top">
-		          <a href="main.php?visit_label={$elements_array[$element].visit_label}&instrument={$elements_array[$element].full_name}
+		          <a href="{$baseurl}/data_integrity_flag/?visit_label={$elements_array[$element].visit_label}&instrument={$elements_array[$element].full_name}
 &filter=Show+Data&test_name=data_team_helper">{$elements_array[$element].instrument}
 		          </a>
 		        </td>
